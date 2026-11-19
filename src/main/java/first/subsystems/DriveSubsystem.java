@@ -4,8 +4,6 @@
 
 package first.subsystems;
 
-import org.wpilib.hardware.hal.HAL;
-
 import org.wpilib.hardware.imu.OnboardIMU;
 
 import org.wpilib.math.geometry.Pose2d;
@@ -40,11 +38,11 @@ public class DriveSubsystem extends SubsystemBase {
       DriveConstants.kRearRightTurningCanId,
       DriveConstants.kBackRightChassisAngularOffset);
 
-  // The gyro sensor
+  // The gyro sensor (SystemCore onboard IMU)
+  private final OnboardIMU m_gyro = new OnboardIMU(OnboardIMU.MountOrientation.FLAT);
 
-  private final OnboardIMU m_gyro = new OnboardIMU(OnboardIMU.MountOrientation.FLAT);  
   // Odometry class for tracking robot pose
-  SwerveDriveOdometry m_odometry = new SwerveDriveOdometry(
+  private final SwerveDriveOdometry m_odometry = new SwerveDriveOdometry(
       DriveConstants.kDriveKinematics,
       m_gyro.getRotation2d(),
       new SwerveModulePosition[] {
@@ -56,7 +54,6 @@ public class DriveSubsystem extends SubsystemBase {
 
   /** Creates a new DriveSubsystem. */
   public DriveSubsystem() {
-    // Usage reporting for MAXSwerve template
   }
 
   @Override
@@ -113,36 +110,42 @@ public class DriveSubsystem extends SubsystemBase {
     double ySpeedDelivered = ySpeed * DriveConstants.kMaxSpeedMetersPerSecond;
     double rotDelivered = rot * DriveConstants.kMaxAngularSpeed;
 
-    var swerveModuleStates = DriveConstants.kDriveKinematics.toSwerveModuleStates(
-        fieldRelative
-            ? ChassisSpeeds.fromFieldRelativeSpeeds(xSpeedDelivered, ySpeedDelivered, rotDelivered,
-                m_gyro.getRotation2d())
-            : new ChassisSpeeds(xSpeedDelivered, ySpeedDelivered, rotDelivered));
-    SwerveDriveKinematics.desaturateWheelSpeeds(
-        swerveModuleStates, DriveConstants.kMaxSpeedMetersPerSecond);
-    m_frontLeft.setDesiredState(swerveModuleStates[0]);
-    m_frontRight.setDesiredState(swerveModuleStates[1]);
-    m_rearLeft.setDesiredState(swerveModuleStates[2]);
-    m_rearRight.setDesiredState(swerveModuleStates[3]);
+    ChassisVelocities velocities = new ChassisVelocities(
+        xSpeedDelivered, ySpeedDelivered, rotDelivered);
+
+    // In 2027, field-relative -> robot-relative is done on the object itself.
+    if (fieldRelative) {
+      velocities = velocities.toRobotRelative(m_gyro.getRotation2d());
+    }
+
+    SwerveModuleVelocity[] moduleVelocities =
+        DriveConstants.kDriveKinematics.toSwerveModuleVelocities(velocities);
+    moduleVelocities = SwerveDriveKinematics.desaturateWheelVelocities(
+        moduleVelocities, DriveConstants.kMaxSpeedMetersPerSecond);
+
+    m_frontLeft.setDesiredState(moduleVelocities[0]);
+    m_frontRight.setDesiredState(moduleVelocities[1]);
+    m_rearLeft.setDesiredState(moduleVelocities[2]);
+    m_rearRight.setDesiredState(moduleVelocities[3]);
   }
 
   /**
    * Sets the wheels into an X formation to prevent movement.
    */
- public void setX() {
+  public void setX() {
     m_frontLeft.setDesiredState(new SwerveModuleVelocity(0, Rotation2d.fromDegrees(45)));
     m_frontRight.setDesiredState(new SwerveModuleVelocity(0, Rotation2d.fromDegrees(-45)));
     m_rearLeft.setDesiredState(new SwerveModuleVelocity(0, Rotation2d.fromDegrees(-45)));
     m_rearRight.setDesiredState(new SwerveModuleVelocity(0, Rotation2d.fromDegrees(45)));
-}
+  }
 
   /**
-   * Sets the swerve ModuleStates.
+   * Sets the swerve module velocities.
    *
-   * @param desiredStates The desired SwerveModule states.
+   * @param desiredStates The desired SwerveModule velocities.
    */
-  public void setModuleStates(SwerveModuleState[] desiredStates) {
-    SwerveDriveKinematics.desaturateWheelSpeeds(
+  public void setModuleStates(SwerveModuleVelocity[] desiredStates) {
+    desiredStates = SwerveDriveKinematics.desaturateWheelVelocities(
         desiredStates, DriveConstants.kMaxSpeedMetersPerSecond);
     m_frontLeft.setDesiredState(desiredStates[0]);
     m_frontRight.setDesiredState(desiredStates[1]);
@@ -178,6 +181,7 @@ public class DriveSubsystem extends SubsystemBase {
    * @return The turn rate of the robot, in degrees per second
    */
   public double getTurnRate() {
-    return m_gyro.getGyroRateZ() * (DriveConstants.kGyroReversed ? -1.0 : 1.0);
+    // getGyroRateZ() returns radians per second on the SystemCore IMU.
+    return Math.toDegrees(m_gyro.getGyroRateZ()) * (DriveConstants.kGyroReversed ? -1.0 : 1.0);
   }
 }
