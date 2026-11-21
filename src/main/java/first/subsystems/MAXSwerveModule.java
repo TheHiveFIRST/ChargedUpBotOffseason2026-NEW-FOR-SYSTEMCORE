@@ -4,23 +4,20 @@
 
 package first.subsystems;
 
+import com.revrobotics.AbsoluteEncoder;
+import com.revrobotics.PersistMode;
+import com.revrobotics.RelativeEncoder;
+import com.revrobotics.ResetMode;
+import com.revrobotics.spark.SparkClosedLoopController;
+import com.revrobotics.spark.SparkLowLevel.ControlType;
+import com.revrobotics.spark.SparkLowLevel.MotorType;
+import com.revrobotics.spark.SparkMax;
+import first.robot.Configs;
+import org.wpilib.hardware.bus.CANPort;
 import org.wpilib.math.controller.PIDController; // check this import if it doesn't resolve
 import org.wpilib.math.geometry.Rotation2d;
 import org.wpilib.math.kinematics.SwerveModulePosition;
 import org.wpilib.math.kinematics.SwerveModuleVelocity;
-
-import com.revrobotics.spark.SparkClosedLoopController;
-import com.revrobotics.spark.SparkMax;
-import com.revrobotics.spark.SparkLowLevel.ControlType;
-import com.revrobotics.spark.SparkLowLevel.MotorType;
-import com.revrobotics.AbsoluteEncoder;
-import com.revrobotics.RelativeEncoder;
-import com.revrobotics.PersistMode;
-import com.revrobotics.ResetMode;
-
-import org.wpilib.hardware.bus.CANPort;
-
-import first.robot.Configs;
 
 public class MAXSwerveModule {
   private final SparkMax m_drivingSpark;
@@ -38,17 +35,13 @@ public class MAXSwerveModule {
 
   private double m_chassisAngularOffset = 0;
 
-  private SwerveModuleVelocity m_desiredState =
-      new SwerveModuleVelocity(0.0, new Rotation2d());
+  private SwerveModuleVelocity m_desiredState = new SwerveModuleVelocity(0.0, new Rotation2d());
 
   /**
-   * Constructs a MAXSwerveModule and configures the driving and turning motors,
-   * encoders, and PID controllers.
+   * Constructs a MAXSwerveModule and configures the driving and turning motors, encoders, and PID
+   * controllers.
    */
-  public MAXSwerveModule(
-      int drivingCANId,
-      int turningCANId,
-      double chassisAngularOffset) {
+  public MAXSwerveModule(int drivingCANId, int turningCANId, double chassisAngularOffset) {
     m_drivingSpark = new SparkMax(CANPort.CAN_S0, drivingCANId, MotorType.kBrushless);
     m_turningSpark = new SparkMax(CANPort.CAN_S0, turningCANId, MotorType.kBrushless);
 
@@ -73,9 +66,8 @@ public class MAXSwerveModule {
 
     m_chassisAngularOffset = chassisAngularOffset;
 
-    m_desiredState = new SwerveModuleVelocity(
-        0.0,
-        new Rotation2d(getTurningRadians() - m_chassisAngularOffset));
+    m_desiredState =
+        new SwerveModuleVelocity(0.0, new Rotation2d(getTurningRadians() - m_chassisAngularOffset));
     m_drivingEncoder.setPosition(0);
   }
 
@@ -94,27 +86,21 @@ public class MAXSwerveModule {
     return m_drivingEncoder.getVelocity().get() * Configs.MAXSwerveModule.kDrivingVelocityFactor;
   }
 
-  /**
-   * Returns the current velocity and angle of the module.
-   */
+  /** Returns the current velocity and angle of the module. */
   public SwerveModuleVelocity getState() {
     return new SwerveModuleVelocity(
-        getDrivingMetersPerSecond(),
-        new Rotation2d(getTurningRadians() - m_chassisAngularOffset));
+        getDrivingMetersPerSecond(), new Rotation2d(getTurningRadians() - m_chassisAngularOffset));
   }
 
-  /**
-   * Returns the current position of the module.
-   */
+  /** Returns the current position of the module. */
   public SwerveModulePosition getPosition() {
     return new SwerveModulePosition(
-        getDrivingMeters(),
-        new Rotation2d(getTurningRadians() - m_chassisAngularOffset));
+        getDrivingMeters(), new Rotation2d(getTurningRadians() - m_chassisAngularOffset));
   }
 
   /**
-   * Sets the desired velocity and angle for the module. Call this every loop,
-   * since the turning PID runs here.
+   * Sets the desired velocity and angle for the module. Call this every loop, since the turning PID
+   * runs here.
    */
   public void setDesiredState(SwerveModuleVelocity desiredState) {
     // Apply chassis angular offset.
@@ -125,8 +111,7 @@ public class MAXSwerveModule {
 
     // Optimize to minimize module rotation. The corrected state includes the offset,
     // so compare it against the raw encoder angle.
-    correctedDesiredState =
-        correctedDesiredState.optimize(new Rotation2d(getTurningRadians()));
+    correctedDesiredState = correctedDesiredState.optimize(new Rotation2d(getTurningRadians()));
 
     // Driving: convert m/s to the SPARK's native RPM.
     m_drivingClosedLoopController.setSetpoint(
@@ -134,12 +119,10 @@ public class MAXSwerveModule {
         ControlType.kVelocity);
 
     // Turning: wrap-aware PID on the robot, output as duty cycle.
-    double turnOutput = m_turningPID.calculate(
-        getTurningRadians(),
-        correctedDesiredState.angle.getRadians());
+    double turnOutput =
+        m_turningPID.calculate(getTurningRadians(), correctedDesiredState.angle.getRadians());
     m_turningClosedLoopController.setSetpoint(
-        Math.max(-1.0, Math.min(1.0, turnOutput)),
-        ControlType.kDutyCycle);
+        Math.max(-1.0, Math.min(1.0, turnOutput)), ControlType.kDutyCycle);
 
     m_desiredState = desiredState;
   }

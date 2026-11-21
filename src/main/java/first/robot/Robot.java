@@ -12,7 +12,7 @@ import org.wpilib.framework.TimedRobot;
 public class Robot extends TimedRobot {
   public Robot() {
     // Record metadata
-  }  
+  }
 
   /** This function is called periodically during all modes. */
   @Override
