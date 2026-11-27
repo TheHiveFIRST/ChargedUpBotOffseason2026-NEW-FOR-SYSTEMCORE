@@ -16,6 +16,7 @@ import org.wpilib.math.kinematics.SwerveDriveKinematics;
 import org.wpilib.math.kinematics.SwerveDriveOdometry;
 import org.wpilib.math.kinematics.SwerveModulePosition;
 import org.wpilib.math.kinematics.SwerveModuleVelocity;
+import org.wpilib.math.util.MathUtil;
 import org.wpilib.telemetry.Telemetry;
 
 public class DriveSubsystem extends SubsystemBase {
@@ -201,49 +202,22 @@ public class DriveSubsystem extends SubsystemBase {
     // Convert the commanded speeds into the correct units for the drivetrain
 
     m_headingPID.setSetpoint(targetHeading.getDegrees());
-    m_xPID.setSetpoint(xTarget);
-    m_yPID.setSetpoint(yTarget);
-
+    double xerror = xTarget - getPose().getX();
+    double yerror = yTarget - getPose().getY();
+    double xp = 1.0;
+    double yp = 1.0;
+    double xpower = xerror * xp;
+    double ypower = yerror * yp;
     double rot = m_headingPID.calculate(m_gyro.getRotation2d().getDegrees());
     rot = Math.min(1.0, Math.max(-1.0, rot));
+    double xclamped = Math.clamp(xpower, -1.0, 1.0);
+    double yclamped = Math.clamp(ypower, -1.0, 1.0);
 
-    double xSpeed = m_xPID.calculate(getPose().getX());
-    xSpeed = Math.min(1.0, Math.max(-1.0, xSpeed));
-    double xpos = getPose().getX();
-    double ypos = -getPose().getY();
-    System.out.println("MyPose: " + xpos + ", " + ypos);
-
-    double ySpeed = m_yPID.calculate(-getPose().getY());
-    ySpeed = Math.min(1.0, Math.max(-1.0, ySpeed));
-
-    double xSpeedDelivered = xSpeed * DriveConstants.kMaxSpeedMetersPerSecond;
-    double ySpeedDelivered = ySpeed * DriveConstants.kMaxSpeedMetersPerSecond;
+    double xSpeedDelivered = xclamped * DriveConstants.kMaxSpeedMetersPerSecond;
+    double ySpeedDelivered = yclamped * DriveConstants.kMaxSpeedMetersPerSecond;
     double rotDelivered = rot * DriveConstants.kMaxAngularSpeed;
 
-    if (slowMode) {
-      xSpeed *= DriveConstants.kSlowModeMultiplier;
-      ySpeed *= DriveConstants.kSlowModeMultiplier;
-      rot *= DriveConstants.kSlowModeMultiplier;
-    }
-
-    ChassisVelocities velocities =
-        new ChassisVelocities(xSpeedDelivered, ySpeedDelivered, rotDelivered);
-
-    // In 2027, field-relative -> robot-relative is done on the object itself.
-    if (fieldRelative) {
-      velocities = velocities.toRobotRelative(m_gyro.getRotation2d());
-    }
-
-    SwerveModuleVelocity[] moduleVelocities =
-        DriveConstants.kDriveKinematics.toSwerveModuleVelocities(velocities);
-    moduleVelocities =
-        SwerveDriveKinematics.desaturateWheelVelocities(
-            moduleVelocities, DriveConstants.kMaxSpeedMetersPerSecond);
-
-    m_frontLeft.setDesiredState(moduleVelocities[0]);
-    m_frontRight.setDesiredState(moduleVelocities[1]);
-    m_rearLeft.setDesiredState(moduleVelocities[2]);
-    m_rearRight.setDesiredState(moduleVelocities[3]);
+    drive(xSpeedDelivered, ySpeedDelivered, rotDelivered, true, false);
   }
 
   /** Sets the wheels into an X formation to prevent movement. */

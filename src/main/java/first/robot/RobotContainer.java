@@ -6,6 +6,7 @@ package first.robot;
 
 import first.robot.Constants.OIConstants;
 import first.subsystems.DriveSubsystem;
+import org.wpilib.math.geometry.Pose2d;
 import org.wpilib.command2.InstantCommand;
 import org.wpilib.command2.RunCommand;
 import org.wpilib.command2.button.CommandXboxController;
@@ -71,7 +72,7 @@ public class RobotContainer {
     m_driverController.x().whileTrue(new RunCommand(() -> m_robotDrive.setX(), m_robotDrive));
 
     m_driverController
-        .dpadUp()
+        .rightStick()
         .whileTrue(
             new RunCommand(
                 () ->
@@ -91,6 +92,12 @@ public class RobotContainer {
             new RunCommand(
                 () -> m_robotDrive.driveToPos(0, 0, true, true, Rotation2d.fromDegrees(0)),
                 m_robotDrive));
+
+    m_driverController
+        .a()
+        .onTrue(
+            new InstantCommand(() -> m_robotDrive.resetOdometry(new Pose2d(0, 0, Rotation2d.fromDegrees(0))), m_robotDrive)
+        );
 
     /*
     // Roller subsystem button bindings
